@@ -4,13 +4,25 @@ import React, { useEffect, useState, useCallback } from "react";
 import axios from "axios";
 import VideoCard from "@/components/VideoCard";
 import { Video } from "@/types";
+import { useAuth } from "@clerk/nextjs";
+import { useRouter } from "next/navigation";
 
 const Home = () => {
+  const { isSignedIn, isLoaded } = useAuth();
+  const router = useRouter();
   const [videos, setVideos] = useState<Video[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  useEffect(() => {
+    if (isLoaded && !isSignedIn) {
+      router.push("/sign-in");
+    }
+  }, [isLoaded, isSignedIn, router]);
+
   const fetchVideos = useCallback(async () => {
+    if (!isSignedIn) return;
+
     try {
       setError(null);
       const res = await axios.get("/api/videos");
@@ -27,55 +39,52 @@ const Home = () => {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [isSignedIn]);
 
   useEffect(() => {
-    fetchVideos();
-  }, [fetchVideos]);
+    let mounted = true;
+
+    if (mounted && isSignedIn) {
+      fetchVideos();
+    }
+
+    return () => {
+      mounted = false;
+    };
+  }, [fetchVideos, isSignedIn]);
+
+  if (!isLoaded || !isSignedIn) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-gray-900"></div>
+      </div>
+    );
+  }
 
   if (loading) {
     return (
-      <div className="gap-4 w-full flex items-center justify-center mt-8 h-[400px]">
-        <div className="w-20 h-20 border-4 border-transparent text-blue-400 text-4xl animate-spin flex items-center justify-center border-t-blue-400 rounded-full">
-          <div className="w-16 h-16 border-4 border-transparent text-red-400 text-2xl animate-spin flex items-center justify-center border-t-red-400 rounded-full"></div>
-        </div>
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-gray-900"></div>
       </div>
     );
   }
 
   if (error) {
     return (
-      <div className="flex flex-col gap-8 p-8">
-        <div className="flex items-center justify-center">
-          <h1 className="text-3xl font-bold flex items-center justify-center">
-            Error
-          </h1>
-        </div>
-        <div className="flex items-center justify-center h-[400px] text-red-500">
-          {error}
-        </div>
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="text-red-500">{error}</div>
       </div>
     );
   }
 
   return (
-    <div className="flex flex-col gap-8 p-8">
-      <div className="flex items-center justify-center">
-        <h1 className="text-3xl font-bold flex items-center justify-center">
-          VIDEOS
-        </h1>
+    <div className="container mx-auto px-4 py-8">
+      <h1 className="text-3xl font-bold mb-8">Videos</h1>
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        {videos.map((video) => (
+          <VideoCard key={video.id} video={video} />
+        ))}
       </div>
-      {videos.length === 0 ? (
-        <div className="flex items-center justify-center h-[400px] text-muted-foreground">
-          NO VIDEOS FOUND
-        </div>
-      ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {videos.map((video) => (
-            <VideoCard key={video.id} video={video} />
-          ))}
-        </div>
-      )}
     </div>
   );
 };
